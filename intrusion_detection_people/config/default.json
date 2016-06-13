@@ -1,0 +1,10 @@
+{ 
+  "24": {   
+    "name" : "IRlab (restricted access)",  
+    "intrusion_detection" : "true" 	
+  },
+  "25": {
+    "name" : "Common area",  
+    "intrusion_detection" : "false" 	
+  }
+}
