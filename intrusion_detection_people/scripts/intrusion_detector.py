@@ -98,7 +98,7 @@ class IntrusionDetector():
         if blog:
             self.blog_collection = blog
         else:
-            self.blog_collection = None # only commandline reporting
+            self.blog_collection = 'soma_blog' # only commandline reporting
 
         self.talk = RobotTalkProxy('robot_talk')
         
