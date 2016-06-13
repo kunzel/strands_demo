@@ -218,6 +218,8 @@ class IntrusionDetector():
                             self.res_uuids.append(uuid)
                             self.talk.play_random("intrusion_detection")
 
+                            self.gen_blog_entry(r, uuid)
+
                 for r in self.unres_roi.keys():                
                     region = self.unres_roi[r]
                     for ind, i in enumerate(self._ubd_pos):
@@ -270,7 +272,7 @@ class IntrusionDetector():
 
         name = "UNNAMED-ROI"
         if "name" in self.kb[roi_id]:
-            name = sra.kb[roi_id]["name"]
+            name = self.kb[roi_id]["name"]
         return name
             
     def analyze(self, roi_id, res):
@@ -308,119 +310,39 @@ class IntrusionDetector():
         return pos_res, neg_res
 
         
-    def gen_blog_entry(self, roi_id, pos_objs, neg_objs):
+    def gen_blog_entry(self, roi_id, uuid):
 
         print 'Region: ' + self.get_roi_name(roi_id)
-
-        body = '### OBJECT REPORT\n\n'
+        time = dt.fromtimestamp(int(rospy.get_time()))
+        body = '### INTRUSION DETECTION REPORT\n\n'
         body += '- **Region:** ' + self.get_roi_name(roi_id) + '\n\n'
-        body += '- **Startime:** ' + str(self.startdate) + '\n\n'
-        body += '- **Endtime:** '  + str(self.enddate)  + '\n\n'
-        body += '- **Summary**: <font color="green">ALLOWED ITEMS (' + str(len(pos_objs)) + ')</font>, <font color="red">NOT-ALLOWED ITEMS (' + str(len(neg_objs)) + ')</font>\n\n'
+        body += '- **UUID:' + str(uuid)  + '\n\n'
+        body += '- **Time:** ' + str(time)  + '\n\n'
+        #body += '- **Summary**: <font color="green">ALLOWED ITEMS (' + str(len(pos_objs)) + ')</font>, <font color="red">NOT-ALLOWED ITEMS (' + str(len(neg_objs)) + ')</font>\n\n'
 
 
         # # Create some blog entries
         msg_store = MessageStoreProxy(collection=self.blog_collection)
         robblog_path = roslib.packages.get_pkg_dir('soma_utils') 
 
-        world_model = World(server_host='localhost',server_port=62345)
-
-        print "POS_OBJS:", len(pos_objs)
-        for idx, obj in enumerate(pos_objs):        
-            try:
-                o = world_model.get_object(obj.id)
-                print idx, obj.id, obj.type
-                observations = o._observations
-                obs = observations[0]
-            except:
-                rospy.logerr("Object not in world model: %s, %s", idx, obj.id)
-
-            # CHECK that objservation is within timeframe
-            if self.start < int(obs.stamp) and int(obs.stamp) < self.end:
-
-                rgb_mask = obs.get_message("rgb_mask")
-                bridge = CvBridge()
-                im = bridge.imgmsg_to_cv2(rgb_mask, desired_encoding="bgr8")
-                imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
-                ret,thresh = cv2.threshold(imgray,127,255,0)
-                contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-
-                full_scene = obs.get_message("/head_xtion/rgb/image_rect_color")
-                bridge = CvBridge()
-                cv_image = bridge.imgmsg_to_cv2(full_scene, desired_encoding="bgr8")
-
-                cv2.drawContours(cv_image,contours,-1,(0,255,0),2)
-                full_scene_contour = bridge.cv2_to_imgmsg(cv_image)
-
-                #success = cv2.imwrite(obj.id+'.jpeg',cv_image)
-                img_id = msg_store.insert(full_scene_contour)
-                body += '<font color="green">ALLOWED ITEM (' + str(idx+1) + '/'+ str(len(pos_objs)) + '):</font> ' + obj.type + '\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
+        ubd_img = rospy.wait_for_message('/upper_body_detector/image', Image, 5)
+        bridge = CvBridge()
+        img = bridge.imgmsg_to_cv2(ubd_img, desired_encoding="bgr8")
+        img_id = msg_store.insert(img)
+        body += '<font color="red">Detected person:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
                 
-            else:
-                rospy.logerr("Ignore old observation for object: %s", obj.id)
+        
 
-        print "NEG_OBJS:", len(neg_objs)
-        for idx, obj in enumerate(neg_objs):        
-            try:
-                o = world_model.get_object(obj.id)
-                print idx, obj.id, obj.type
-                observations = o._observations
-                obs = observations[0]
-            except:
-                rospy.logerr("Object not in world model: %s, %s", idx, obj.id)
+        e = RobblogEntry(title=str(time) + " " + self.get_roi_name(roi_id), body= body )
+        msg_store.insert(e)
 
-            # CHECK that objservation is within timeframe
-            if self.start < int(obs.stamp) and int(obs.stamp) < self.end:
-
-                rgb_mask = obs.get_message("rgb_mask")
-                bridge = CvBridge()
-                im = bridge.imgmsg_to_cv2(rgb_mask, desired_encoding="bgr8")
-                imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
-                ret,thresh = cv2.threshold(imgray,127,255,0)
-                contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
-
-                full_scene = obs.get_message("/head_xtion/rgb/image_rect_color")
-                bridge = CvBridge()
-                cv_image = bridge.imgmsg_to_cv2(full_scene, desired_encoding="bgr8")
-
-                cv2.drawContours(cv_image,contours,-1,(0,0,255),2)
-                full_scene_contour = bridge.cv2_to_imgmsg(cv_image)
-
-                #success = cv2.imwrite(obj.id+'.jpeg',cv_image)
-                img_id = msg_store.insert(full_scene_contour)
-                body += '<font color="red">NOT-ALLOWED ITEM (' + str(idx+1) + '/'+ str(len(neg_objs)) + '):</font> ' + obj.type + '\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
-                
-            else:
-                rospy.logerr("Ignore old observation for object: %s", obj.id)
-
-        if len(pos_objs) > 0 or len(neg_objs) > 0:
-            e = RobblogEntry(title=str(self.enddate) + " " + self.get_roi_name(roi_id), body= body )
-            msg_store.insert(e)
-
-
-    def gen_cmdline_report(self, roi_id, pos_objs, neg_objs):
-
-        # GENERATE REPORT 
-        print
-        print 80 * "="
-        print "Region:", self.get_roi_name(roi_id)
-        print "Start :", self.startdate
-        print "End   :", self.enddate 
-        print
-        print "POSITIVE objects:", len(pos_objs)
-        for idx, obj in enumerate(pos_objs):
-                print idx, obj.type 
-        print "NEGATIVE objects:", len(neg_objs)
-        for idx, obj in enumerate(neg_objs):
-                print idx, obj.type
-        print 80 * "="
-        print
-
+    
     def run(self):
         rospy.loginfo("Intrusion detection for people running...")
         rospy.spin()
         rospy.loginfo("Intrusion detection for people has finished")   
     
+
 
         
 
