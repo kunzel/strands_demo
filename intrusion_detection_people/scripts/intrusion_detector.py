@@ -315,7 +315,7 @@ class IntrusionDetector():
         time = dt.fromtimestamp(int(rospy.get_time()))
         body = '### INTRUSION DETECTION REPORT\n\n'
         body += '- **Region:** ' + self.get_roi_name(roi_id) + '\n\n'
-        body += '- **UUID:' + str(uuid)  + '\n\n'
+        body += '- **Person UUID:** ' + str(uuid)  + '\n\n'
         body += '- **Time:** ' + str(time)  + '\n\n'
         #body += '- **Summary**: <font color="green">ALLOWED ITEMS (' + str(len(pos_objs)) + ')</font>, <font color="red">NOT-ALLOWED ITEMS (' + str(len(neg_objs)) + ')</font>\n\n'
 
@@ -325,12 +325,14 @@ class IntrusionDetector():
         robblog_path = roslib.packages.get_pkg_dir('soma_utils') 
 
         img = rospy.wait_for_message('/upper_body_detector/image', Image, 5)
-        img_id = msg_store.insert(img)
-        body += '<font color="red">Detected person:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
-                
-        
 
-        e = RobblogEntry(title=str(time) + " " + self.get_roi_name(roi_id), body= body )
+        bridge = CvBridge()
+        cv_image = bridge.imgmsg_to_cv2(img, desired_encoding="bgr8")
+        ros_img = bridge.cv2_to_imgmsg(cv_image)
+        img_id = msg_store.insert(ros_img)
+        body += '<font color="red">Detected person:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
+
+        e = RobblogEntry(title=str(time) + " Intrusion Detection Report -" + self.get_roi_name(roi_id), body= body )
         msg_store.insert(e)
 
     
