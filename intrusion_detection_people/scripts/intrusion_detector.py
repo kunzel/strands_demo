@@ -217,7 +217,6 @@ class IntrusionDetector():
                             print "-> RESTRICTED region:", uuid
                             self.res_uuids.append(uuid)
                             self.talk.play_random("intrusion_detection")
-
                             self.gen_blog_entry(r, uuid)
 
                 for r in self.unres_roi.keys():                
@@ -325,9 +324,7 @@ class IntrusionDetector():
         msg_store = MessageStoreProxy(collection=self.blog_collection)
         robblog_path = roslib.packages.get_pkg_dir('soma_utils') 
 
-        ubd_img = rospy.wait_for_message('/upper_body_detector/image', Image, 5)
-        bridge = CvBridge()
-        img = bridge.imgmsg_to_cv2(ubd_img, desired_encoding="bgr8")
+        img = rospy.wait_for_message('/upper_body_detector/image', Image, 5)
         img_id = msg_store.insert(img)
         body += '<font color="red">Detected person:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
                 
