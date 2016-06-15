@@ -212,6 +212,8 @@ class IntrusionDetector():
                 for r in self.res_roi.keys():                
                     region = self.res_roi[r]
                     for ind, i in enumerate(self._ubd_pos):
+                        if ind >= len(self._tracker_uuids):
+                            break
                         uuid = self._tracker_uuids[ind]
                         if region.contains_point([i.position.x, i.position.y]) and uuid not in self.res_uuids:
                             print "-> RESTRICTED region:", uuid
@@ -222,6 +224,8 @@ class IntrusionDetector():
                 for r in self.unres_roi.keys():                
                     region = self.unres_roi[r]
                     for ind, i in enumerate(self._ubd_pos):
+                        if ind >= len(self._tracker_uuids):
+                            break
                         uuid = self._tracker_uuids[ind]
                         if region.contains_point([i.position.x, i.position.y]) and uuid not in self.unres_uuids:
                             print "-> UNRESTRICTED REGION:", uuid
