@@ -225,8 +225,8 @@ class IntrusionDetector():
                             if conditions:
                                 print "-> RESTRICTED region:", uuid
                                 self.res_uuids.append(uuid)
-                                print self.talk.get_random_text("intrusion_detection")
-                                #self.talk.play_random("intrusion_detection")
+                                #print self.talk.get_random_text("intrusion_detection")
+                                self.talk.play_random("intrusion_detection")
                                 self.gen_blog_entry(r, uuid)
 
                 for r in self.unres_roi.keys():                
@@ -245,8 +245,8 @@ class IntrusionDetector():
                             if conditions:
                                 print "-> UNRESTRICTED region:", uuid
                                 self.unres_uuids.append(uuid)
-                                print self.talk.get_random_text("human_aware_nav")
-                                #self.talk.play_random("human_aware_nav")
+                                #print self.talk.get_random_text("human_aware_nav")
+                                self.talk.play_random("human_aware_nav")
 
 
     def get_rois(self):
