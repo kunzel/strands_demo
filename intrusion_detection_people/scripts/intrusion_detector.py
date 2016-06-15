@@ -208,29 +208,45 @@ class IntrusionDetector():
     def analyze_detections(self):
         
             if len(self._tracker_uuids) > 0:
-                print "Number of detected persons:", len(self._tracker_uuids)
+                #print "Number of detected persons:", len(self._tracker_uuids)
                 for r in self.res_roi.keys():                
                     region = self.res_roi[r]
-                    for ind, i in enumerate(self._ubd_pos):
-                        if ind >= len(self._tracker_uuids):
-                            break
-                        uuid = self._tracker_uuids[ind]
-                        if region.contains_point([i.position.x, i.position.y]) and uuid not in self.res_uuids:
-                            print "-> RESTRICTED region:", uuid
-                            self.res_uuids.append(uuid)
-                            self.talk.play_random("intrusion_detection")
-                            self.gen_blog_entry(r, uuid)
+                    for i in self._ubd_pos:
+                        for ind, j in enumerate(self._tracker_pos):
+                            # conditions to make sure that a person is not detected
+                            # twice and can be verified by UBD logging, also is inside
+                            # the surface (or target) region
+                            conditions = euclidean(
+                                [i.position.x, i.position.y], [j.position.x, j.position.y]
+                            ) < 0.3
+                            uuid = self._tracker_uuids[ind]
+                            conditions = conditions and uuid not in self.res_uuids
+                            conditions = conditions and region.contains_point([i.position.x, i.position.y])
+                            if conditions:
+                                print "-> RESTRICTED region:", uuid
+                                self.res_uuids.append(uuid)
+                                print self.talk.get_random_text("intrusion_detection")
+                                #self.talk.play_random("intrusion_detection")
+                                self.gen_blog_entry(r, uuid)
 
                 for r in self.unres_roi.keys():                
                     region = self.unres_roi[r]
-                    for ind, i in enumerate(self._ubd_pos):
-                        if ind >= len(self._tracker_uuids):
-                            break
-                        uuid = self._tracker_uuids[ind]
-                        if region.contains_point([i.position.x, i.position.y]) and uuid not in self.unres_uuids:
-                            print "-> UNRESTRICTED REGION:", uuid
-                            self.unres_uuids.append(uuid)
-                            self.talk.play_random("human_aware_nav")
+                    for i in self._ubd_pos:
+                        for ind, j in enumerate(self._tracker_pos):
+                            # conditions to make sure that a person is not detected
+                            # twice and can be verified by UBD logging, also is inside
+                            # the surface (or target) region
+                            conditions = euclidean(
+                                [i.position.x, i.position.y], [j.position.x, j.position.y]
+                            ) < 0.3
+                            uuid = self._tracker_uuids[ind]
+                            conditions = conditions and uuid not in self.unres_uuids
+                            conditions = conditions and region.contains_point([i.position.x, i.position.y])
+                            if conditions:
+                                print "-> UNRESTRICTED region:", uuid
+                                self.unres_uuids.append(uuid)
+                                print self.talk.get_random_text("human_aware_nav")
+                                #self.talk.play_random("human_aware_nav")
 
 
     def get_rois(self):
