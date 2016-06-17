@@ -120,12 +120,14 @@ class ChangeDetector():
     def _init_rois(self):
 
         self.roi = {}
+        self.roi_name = {}
         rois = self.get_rois()
         for r in rois:
             for waypoint in self.kb.keys():
-                if self.kb[waypoint] == r.id:
+                if self.kb[waypoint]["roi_id"] == r.id:
                     region = self.generate_region(r.posearray.poses)
                     self.roi[r.id] = region
+                    self.roi_name[r.id] =  self.kb[waypoint]["roi_name"]
         print "ROIs", self.roi
 
     def _init_meta_room_count(self):
@@ -262,13 +264,11 @@ class ChangeDetector():
         return rois
 
     def get_roi_name(self, roi_id):
-        if roi_id not in self.kb:
+        if roi_id not in self.roi_name.keys():
             rospy.logerr("ROI is not kmown: %s", roi_id)
             return "UNKNOWN-ROI"
 
-        name = "UNNAMED-ROI"
-        if "name" in self.kb[roi_id]:
-            name = self.kb[roi_id]["name"]
+        name = self.roi_name[roi_id]
         return name
             
     def get_objects(self, waypoint):
@@ -284,28 +284,33 @@ class ChangeDetector():
         resp = self.get_dyn_obj(req)
         return resp
         
-    def gen_blog_entry(self, roi_id, uuid):
+    def gen_blog_entry(self, roi_id, obj_id, obj):
 
         print 'Region: ' + self.get_roi_name(roi_id)
         time = dt.fromtimestamp(int(rospy.get_time()))
-        body = '### INTRUSION DETECTION REPORT\n\n'
+        body = '### CHANGE DETECTION REPORT\n\n'
         body += '- **Region:** ' + self.get_roi_name(roi_id) + '\n\n'
-        body += '- **Person UUID:** ' + str(uuid)  + '\n\n'
+        body += '- **Object ID:** ' + str(obj_id)  + '\n\n'
         body += '- **Time:** ' + str(time)  + '\n\n'
-        #body += '- **Summary**: <font color="green">ALLOWED ITEMS (' + str(len(pos_objs)) + ')</font>, <font color="red">NOT-ALLOWED ITEMS (' + str(len(neg_objs)) + ')</font>\n\n'
 
-
-        # # Create some blog entries
+        # Create some blog entries
         msg_store = MessageStoreProxy(collection=self.blog_collection)
         robblog_path = roslib.packages.get_pkg_dir('soma_utils') 
 
-        img = rospy.wait_for_message('/upper_body_detector/image', Image, 5)
+        bridge = CvBridge()
+        im = bridge.imgmsg_to_cv2(obj.image_mask, desired_encoding="bgr8")
+        imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
+        ret,thresh = cv2.threshold(imgray,127,255,0)
+        contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
         bridge = CvBridge()
-        cv_image = bridge.imgmsg_to_cv2(img, desired_encoding="bgr8")
-        ros_img = bridge.cv2_to_imgmsg(cv_image)
-        img_id = msg_store.insert(ros_img)
-        body += '<font color="red">Detected person:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
+        cv_image = bridge.imgmsg_to_cv2(obj.image_full, desired_encoding="bgr8")
+
+        cv2.drawContours(cv_image,contours,-1,(0,0,255),2)
+        full_scene_contour = bridge.cv2_to_imgmsg(cv_image)
+        img_id = msg_store.insert(full_scene_contour)
+
+        body += '<font color="red">Detected change:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
 
         e = RobblogEntry(title=str(time) + " Change Detection Report", body= body )
         msg_store.insert(e)
@@ -327,19 +332,20 @@ class ChangeDetector():
                     # is cluster in ROI? Ignore things that are outside the region
                     # get clusterinfo/images for WP
                     centroid = objects.centroids[idx]
-                    # if obbject not in ROI => ignore object
-                    #region = self.roi[wp]
+                    # if object not in ROI => ignore object
+                    region = self.roi[self.kb[wp]['roi_id']]
                     print "Checking if object is in ROI"
                     #if not region.contains_point([centroid.x, centroid.y]):
                     #    print "-> object not in ROI, discard object"
                     #    continue
                     print "-> object in ROI, get object info"
                     o = self.get_object(wp, obj)
-                    print o.orig_image
+                    #print o.orig_image
                     
                     # get image mask (get it from the latched topic)
                     #img = rospy.wait_for_message('/object_manager/requested_object_mask', Image, 10)
                     # generate blog entry
+                    self.gen_blog_entry(self.kb[wp]['roi_id'], obj, o)
                     
             rospy.sleep(5.) # sleep for some time
         rospy.loginfo("Change detection for objects finished")   

@@ -1,3 +1,5 @@
 { 
-  "WayPoint3" : "26"
+  "WayPoint3" : {"roi_id" : "26",
+		 "roi_name" : "Robot lab"
+		}
 }
