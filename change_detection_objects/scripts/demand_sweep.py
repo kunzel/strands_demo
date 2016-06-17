@@ -14,7 +14,7 @@ def get_services():
     rospy.loginfo("Waiting for task_executor service...")
     rospy.wait_for_service(demand_task_srv_name)
     rospy.wait_for_service(set_exe_stat_srv_name)
-    rospy.loginfo("Done")        
+    rospy.loginfo("Done")
     add_tasks_srv = rospy.ServiceProxy(demand_task_srv_name, DemandTask)
     set_execution_status = rospy.ServiceProxy(set_exe_stat_srv_name, SetExecutionStatus)
     return add_tasks_srv, set_execution_status
@@ -39,8 +39,8 @@ if __name__ == '__main__':
     print 'set execution'
 
 
-    sweep_task = Task(action='/do_sweep', max_duration=rospy.Duration(60), start_node_id=waypoint)
-    #task_utils.add_string_argument(sweep_task, waypoint)
+    sweep_task = Task(action='do_sweep', max_duration=rospy.Duration(60), start_node_id=waypoint)
+    task_utils.add_string_argument(sweep_task, 'short')
     resp = demand_task(sweep_task)
     print 'demanded task as id: %s' % resp.task_id
     rospy.loginfo('Success: %s' % resp.success)

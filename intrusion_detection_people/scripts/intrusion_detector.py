@@ -352,7 +352,7 @@ class IntrusionDetector():
         img_id = msg_store.insert(ros_img)
         body += '<font color="red">Detected person:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
 
-        e = RobblogEntry(title=str(time) + " Intrusion Detection Report - " + self.get_roi_name(roi_id), body= body )
+        e = RobblogEntry(title=str(time) + " Intrusion Detection - " + self.get_roi_name(roi_id), body= body )
         msg_store.insert(e)
 
     

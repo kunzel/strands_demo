@@ -138,7 +138,7 @@ class ChangeDetector():
 
         for idx, wp in enumerate(resp.waypoint_id):
             if wp in self.kb.keys():
-                self.count[wp] = resp.observation_count[idx] - 1
+                self.count[wp] = resp.observation_count[idx]  - 1 # report latest change straight away 
         
         print self.count
 
@@ -205,49 +205,6 @@ class ChangeDetector():
         return transformed_pose_arr
 
             
-    def analyze_detections(self):
-        
-            if len(self._tracker_uuids) > 0:
-                #print "Number of detected persons:", len(self._tracker_uuids)
-                for r in self.res_roi.keys():                
-                    region = self.res_roi[r]
-                    for i in self._ubd_pos:
-                        for ind, j in enumerate(self._tracker_pos):
-                            # conditions to make sure that a person is not detected
-                            # twice and can be verified by UBD logging, also is inside
-                            # the surface (or target) region
-                            conditions = euclidean(
-                                [i.position.x, i.position.y], [j.position.x, j.position.y]
-                            ) < 0.3
-                            uuid = self._tracker_uuids[ind]
-                            conditions = conditions and uuid not in self.res_uuids
-                            conditions = conditions and region.contains_point([i.position.x, i.position.y])
-                            if conditions:
-                                print "-> RESTRICTED region:", uuid
-                                self.res_uuids.append(uuid)
-                                #print self.talk.get_random_text("intrusion_detection")
-                                self.talk.play_random("intrusion_detection")
-                                self.gen_blog_entry(r, uuid)
-
-                for r in self.unres_roi.keys():                
-                    region = self.unres_roi[r]
-                    for i in self._ubd_pos:
-                        for ind, j in enumerate(self._tracker_pos):
-                            # conditions to make sure that a person is not detected
-                            # twice and can be verified by UBD logging, also is inside
-                            # the surface (or target) region
-                            conditions = euclidean(
-                                [i.position.x, i.position.y], [j.position.x, j.position.y]
-                            ) < 0.3
-                            uuid = self._tracker_uuids[ind]
-                            conditions = conditions and uuid not in self.unres_uuids
-                            conditions = conditions and region.contains_point([i.position.x, i.position.y])
-                            if conditions:
-                                print "-> UNRESTRICTED region:", uuid
-                                self.unres_uuids.append(uuid)
-                                #print self.talk.get_random_text("human_aware_nav")
-                                self.talk.play_random("human_aware_nav")
-
     def get_rois(self):
         rois = []
         try:
@@ -284,35 +241,37 @@ class ChangeDetector():
         resp = self.get_dyn_obj(req)
         return resp
         
-    def gen_blog_entry(self, roi_id, obj_id, obj):
+    def gen_blog_entry(self, roi_id, obj_id, objs):
 
         print 'Region: ' + self.get_roi_name(roi_id)
         time = dt.fromtimestamp(int(rospy.get_time()))
         body = '### CHANGE DETECTION REPORT\n\n'
         body += '- **Region:** ' + self.get_roi_name(roi_id) + '\n\n'
-        body += '- **Object ID:** ' + str(obj_id)  + '\n\n'
+        #body += '- **Object ID:** ' + str(obj_id)  + '\n\n'
         body += '- **Time:** ' + str(time)  + '\n\n'
 
         # Create some blog entries
         msg_store = MessageStoreProxy(collection=self.blog_collection)
         robblog_path = roslib.packages.get_pkg_dir('soma_utils') 
 
-        bridge = CvBridge()
-        im = bridge.imgmsg_to_cv2(obj.image_mask, desired_encoding="bgr8")
-        imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
-        ret,thresh = cv2.threshold(imgray,127,255,0)
-        contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+        for idx,obj in enumerate(objs):
+            
+            bridge = CvBridge()
+            im = bridge.imgmsg_to_cv2(obj.image_mask, desired_encoding="bgr8")
+            imgray = cv2.cvtColor(im,cv2.COLOR_BGR2GRAY)
+            ret,thresh = cv2.threshold(imgray,1,1,1) #cv2.threshold(imgray,127,255,0)
+            contours, hierarchy = cv2.findContours(thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
 
-        bridge = CvBridge()
-        cv_image = bridge.imgmsg_to_cv2(obj.image_full, desired_encoding="bgr8")
+            bridge = CvBridge()
+            cv_image = bridge.imgmsg_to_cv2(obj.image_full, desired_encoding="bgr8")
+            
+            cv2.drawContours(cv_image,contours,-1,(0,0,255),2)
+            full_scene_contour = bridge.cv2_to_imgmsg(cv_image)
+            img_id = msg_store.insert(full_scene_contour)
 
-        cv2.drawContours(cv_image,contours,-1,(0,0,255),2)
-        full_scene_contour = bridge.cv2_to_imgmsg(cv_image)
-        img_id = msg_store.insert(full_scene_contour)
-
-        body += '<font color="red">Detected change:</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
-
-        e = RobblogEntry(title=str(time) + " Change Detection Report", body= body )
+            body += '<font color="red">Detected change (' + str(idx+1) + '/'+ str(len(objs)) + '):</font>\n\n![My helpful screenshot](ObjectID(%s))\n\n' % img_id
+            
+        e = RobblogEntry(title=str(time) + " Change Detection - " + self.roi_name[roi_id], body= body )
         msg_store.insert(e)
 
     
@@ -328,6 +287,7 @@ class ChangeDetector():
                 print "Checking for dynamic objects"
                 objects = self.get_objects(wp)
                 print "-> Found objects:", len(objects.object_id)
+                objs = []
                 for idx, obj in enumerate(objects.object_id):
                     # is cluster in ROI? Ignore things that are outside the region
                     # get clusterinfo/images for WP
@@ -335,17 +295,17 @@ class ChangeDetector():
                     # if object not in ROI => ignore object
                     region = self.roi[self.kb[wp]['roi_id']]
                     print "Checking if object is in ROI"
-                    #if not region.contains_point([centroid.x, centroid.y]):
-                    #    print "-> object not in ROI, discard object"
-                    #    continue
+                    if not region.contains_point([centroid.x, centroid.y]):
+                        print "-> object not in ROI, discard object"
+                        continue
                     print "-> object in ROI, get object info"
                     o = self.get_object(wp, obj)
                     #print o.orig_image
-                    
+                    objs.append(o)
                     # get image mask (get it from the latched topic)
                     #img = rospy.wait_for_message('/object_manager/requested_object_mask', Image, 10)
                     # generate blog entry
-                    self.gen_blog_entry(self.kb[wp]['roi_id'], obj, o)
+                self.gen_blog_entry(self.kb[wp]['roi_id'], obj, objs)
                     
             rospy.sleep(5.) # sleep for some time
         rospy.loginfo("Change detection for objects finished")   
